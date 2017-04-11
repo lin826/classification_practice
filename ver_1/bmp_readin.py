@@ -3,8 +3,8 @@ from PIL import Image
 from os import listdir
 from os.path import isfile, isdir, join
 
-PATH = "../Data_Train"
-BMP_FILE = "Data.npy"
+PATH = "../demo"
+BMP_FILE = "../tmp/data_demo.npy"
 
 def get_bmp_data(file_path):
 	# img = Image.open("../Data_Train/Class1/faceTrain1_1.bmp")
@@ -29,6 +29,12 @@ def get_training_data(path):
 			class_list.append(get_bmp_data(file_name))
 		result.append(np.array(class_list))
 	return np.array(result)
+def get_demo_data(path):
+	result = list()
+	for file_path in get_training_files(path):
+		file_name = join(path,file_path)
+		result.append(get_bmp_data(file_name))
+	return np.array(result)
 
 def convert_data():
 	data = get_training_data(PATH)
@@ -45,3 +51,5 @@ def get_item(f_path):
 ### Convert all training data into Data.npy
 # convert_data()
 # print(get_data())
+data = get_demo_data(PATH)
+np.save(join(PATH,BMP_FILE), data)
