@@ -1,28 +1,29 @@
-import numpy
+import numpy as np
 from model import PDM, PGM
 from bmp_readin import save_item,get_item
-from PCA_convert import reduce_simpliest_PCA,formulate_data
+from PCA_convert import reduce_simpliest_PCA
+from draw import draw_decision_region
 
 # data_size upto 3000
 s = {"map_size":1081,"dim":2,"data_size":2400,
-    "batch_size":1,"iter":100,"k_folder":0,
+    "batch_size":1,"iter":10,"k_folder":0,"PCA_reset":1,
     "x_train":"../tmp/data_based.npy","t_train":"../tmp/data_target.npy"}
 
 def model_init():
     global Ground_x,Ground_t,settings
     Ground_x = get_item(s["x_train"])
     Ground_t = get_item(s["t_train"])
-    Ground_x = numpy.array(Ground_x)
-    Ground_t = numpy.array(Ground_t)
+    Ground_x = np.array(Ground_x)
+    Ground_t = np.array(Ground_t)
     settings = s
     print('Finish initializing')
 
 def model_setting(k):
     global Ground_x,Ground_t,Train_x,Train_t,Test_x,Test_t
     n = len(Ground_x)
-    indices = numpy.asarray(range(n), dtype=numpy.int32)
+    indices = np.asarray(range(n), dtype=np.int32)
     n_train = s['data_size']
-    numpy.random.shuffle(indices)
+    np.random.shuffle(indices)
     if s['k_folder'] == 0:
         Train_x = Ground_x[indices[:n_train]]
         Train_t = Ground_t[indices[:n_train]]
@@ -46,10 +47,22 @@ def model_setting(k):
     print('Train_t',Train_t.shape)
     return 0
 
-reduce_simpliest_PCA()
-formulate_data(get_item("../tmp/DATA_reduced.npy"))
+if(s["PCA_reset"]> 0):
+    reduce_simpliest_PCA(s["dim"])
 
 model_init()
-model_setting(0)
-# m = PDM(Train_x,Train_t,Test_x,Test_t)
-m = PGM(Train_x,Train_t,Test_x,Test_t)
+
+if(s['k_folder']==0):
+    model_setting(0)
+
+    pdm = PDM()
+    pdm.run(Train_x, Train_t,s['iter'])
+    e1=pdm.eval(Test_x, Test_t)
+
+    pgm = PGM()
+    pgm.run(Train_x, Train_t)
+    e2=pgm.eval(Test_x, Test_t)
+
+    draw_decision_region(Test_x,Test_t,[pdm,pgm],[e1,e2])
+# else:
+#     print('K-folder is not implemented')

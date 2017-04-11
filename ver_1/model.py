@@ -1,11 +1,15 @@
 import numpy as np
+from bmp_readin import save_item,get_item
 
 def cal_softmax(a):
     e = np.exp(a)
     return e / e.sum(axis=1)[:, np.newaxis]
 
 class PGM:
-    def __init__(self,x,t,test_x,test_t):
+    def __init__(self):
+        pass
+
+    def run(self,x,t):
         m = x.shape[1] # 2
         k = t.shape[1] # 3
         n = x.shape[0]
@@ -15,10 +19,14 @@ class PGM:
 
         for j in range(k):
             qualified_data = x[t[:, j] == 1]
-            p[j] = len(qualified_data) / n
-            mean[j] = np.mean(qualified_data, axis=0)
-            dif = qualified_data - mean[j]
-            sig += p[j] * dif.T.dot(dif) / len(qualified_data)
+            if(len(qualified_data)==0):
+                p[j] = 0
+                continue
+            else:
+                p[j] = len(qualified_data) / n
+                mean[j] = np.mean(qualified_data, axis=0)
+                dif = qualified_data - mean[j]
+                sig += p[j] * dif.T.dot(dif) / len(qualified_data)
 
         sig_ = np.linalg.pinv(sig)
 
@@ -27,23 +35,35 @@ class PGM:
         for i in range(k):
             self.w[i] = np.dot(sig_,mean[i])
             self.om[i] = (-1.0/2)*mean[i].T.dot(sig_.dot(mean[i])) + np.log(p[i])[0]
-        self.get_result(x,t)
-
-        y = cal_softmax(test_x.dot(self.w.T) + np.tile(self.om.T,(len(test_x),1)))
-        acc = float(np.equal(y.argmax(axis=1), test_t.argmax(axis=1)).sum()) / len(test_t)
-        print ('Accuracy: ', acc)
-
-    def get_result(self,x,t):
-        n = len(x)
-        k = t.shape[1]
-        # y = np.zeros([n,k])
-        y = cal_softmax(x.dot(self.w.T) + np.tile(self.om.T,(n,1)))
+        y = self.predict(x)
         acc = float(np.equal(y.argmax(axis=1), t.argmax(axis=1)).sum()) / len(t)
         print ('acc', acc)
 
-class PDM_basic:
+    def eval(self,test_x,test_t):
+        y = self.predict(test_x)
+        acc = float(np.equal(y.argmax(axis=1), test_t.argmax(axis=1)).sum()) / len(test_t)
+        print (self.get_title()+'Error rate: ', 1-acc)
+        return 1-acc
+
+    def predict(self,x):
+        return cal_softmax(x.dot(self.w.T) + np.tile(self.om.T,(len(x),1)))
+
+    def get_title(self):
+        return "Multi-class Probabilistic Generative Model"
+
+    def set_setting(self,data):
+        self.w = data[0]
+        self.om = data[1]
+
+class PDM:
     def __init__(self):
         pass
+
+    def eval(self,test_x, test_t):
+        y = self.predict(test_x)
+        acc = float(np.equal(y.argmax(axis=1), test_t.argmax(axis=1)).sum()) / len(test_t)
+        print (self.get_title()+'Error rate: ', 1-acc)
+        return 1-acc
 
     def cal_activations(self, p):
         a = p.dot(self.W.T)
@@ -61,24 +81,6 @@ class PDM_basic:
         x = self.phi
         # Set y
         self.y = cal_softmax(self.phi.dot(self.W.T))
-
-        # # Calculate gradient
-        # grad = np.zeros([K, M])
-        # for j in range(K):
-        #     for n in range(N):
-        #         grad[j, :] += (self.y[n,j] - self.t[n,j]) * x[n]
-        # self.gradient = grad.flatten()
-        #
-        # # Calculate Hessian matrix
-        # I = np.identity(K)
-        # H = np.zeros([K*M, K*M])
-        # for j in range(K):
-        #     for k in range(K):
-        #         D_wjk = np.zeros([M, M])
-        #         for n in range(N):
-        #             D_wjk += self.y[n,k] * (I[k,j] - self.y[n,j]) * x.T.dot(x)
-        #         H[j*(M):(j+1)*M, (k)*M:(k+1)*M] = D_wjk
-        # self.hessian = H
 
         # Set gradient
         E = np.zeros((K, M))
@@ -104,7 +106,7 @@ class PDM_basic:
         w_new = w_old - np.dot(H_,self.gradient)
         self.W = w_new.reshape([self.K, self.M])
 
-    def do_IRLS(self,times,x,t):
+    def run(self,x,t,times):
         self.M = len(x[0])+1
         self.K = len(t[0])
         self.W = np.zeros((self.K , self.M))
@@ -120,18 +122,15 @@ class PDM_basic:
                 self.phi = self.get_phi(x[indices[begin:end]])
                 self.t = t[indices[begin:end]]
                 self.update()
-
-            phi = self.get_phi(x)
-            y = cal_softmax(phi.dot(self.W.T))
+            y = self.predict(x)
             acc = float(np.equal(y.argmax(axis=1), t.argmax(axis=1)).sum()) / len(t)
             print ('acc', acc)
 
-class PDM:
-    def __init__(self,x,t,test_x,test_t):
-        self.basic = PDM_basic()
-        self.basic.do_IRLS(10,x,t)
 
-        phi = self.get_phi(test_x)
+    def predict(self,x):
+        phi = self.get_phi(x)
         y = cal_softmax(phi.dot(self.W.T))
-        acc = float(np.equal(y.argmax(axis=1), test_t.argmax(axis=1)).sum()) / len(t)
-        print ('Accuracy: ', acc)
+        return y
+
+    def get_title(self):
+        return "Multi-class Probabilistic Discriminative Model"

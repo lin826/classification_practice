@@ -2,60 +2,39 @@ import numpy as np
 from bmp_readin import get_data,save_item,get_item
 from numpy import linalg
 
-DATA = get_data()
-NUM_CLASS = len(DATA)
-NUM_TRAIN = [len(DATA[i]) for i in range(NUM_CLASS)]
-TARGET_DIM = 2
-def convert_to_X(data):
-    tmp = list()
-    for i in DATA: # Beyond Class
-        for j in i: # get all pictures
-            tmp.append([[a] for a in j])
-    return np.array(tmp)
 
-def get_covariance_matrix(X):
-    N = len(X)
-    # Get mean of x
-    mean = X.mean()
-    # Get covariance matrix
-    S = (X[0]-mean)*np.transpose(X[0]-mean)
-    for i in range(1,N):
-        S = np.add((X[i]-mean)*np.transpose((X[i]-mean)), S)
-    return S/N
-
-def get_X():
-    # X = convert_to_X(DATA)
-    # save_item(X,"../tmp/X.npy")
-    X = get_item("../tmp/X.npy")
-    return X
-
-def get_S():
-    # S = get_covariance_matrix(X)
-    # save_item(S,"../tmp/S_matrix.npy")
-    S = get_item("../tmp/S_matrix.npy")
-    return S
+def reduce_simpliest_PCA(i):
+    global DATA, TARGET_DIM
+    DATA = get_data()
+    TARGET_DIM = int(i)
+    print("Start PCA...")
+    formulate_target()
+    get_eigenvector()
 
 def get_eigenvector():
+    # Get data X
+    ori_dim = DATA.shape[2]
+    X = DATA.reshape([-1,ori_dim])
+
+    # Get covariance matrix
+    S = np.cov(X.T)
+
     # Get eigenvalues and eigenvectors
-    # w, v = linalg.eig(S)
-    # save_item(w,"../tmp/w_eigenvalue.npy")
-    # save_item(v,"../tmp/v_eigenvactors.npy")
-    w = get_item("../tmp/w_eigenvalue.npy")
-    v = get_item("../tmp/v_eigenvactors.npy")
-    # Get the most important two
+    w, v = linalg.eig(S)
+    save_item(w,"../tmp/w_eigenvalue.npy")
+    save_item(v,"../tmp/v_eigenvactors.npy")
+    # # w = get_item("../tmp/w_eigenvalue.npy")
+    # # v = get_item("../tmp/v_eigenvactors.npy")
+
+    # Get the most important ev
     x_pair = [(np.abs(w[i]), v[:,i]) for i in range(len(w))]
     x_pair.sort(key=lambda x: x[0], reverse=True)
-    x_vector = np.array([x_pair[0][1],x_pair[1][1]]).transpose()
-    return x_vector
+    x_vector = np.array([x_pair[i][1] for i in range(TARGET_DIM)]).transpose()
 
-def reduce_dim(i,ev):
-    i = np.array(i)
-    output = [0 for k in range(TARGET_DIM)]
-    for e in range(TARGET_DIM):
-        eigen_vec = np.array([ev[:,e]]).transpose()
-        output[e] = np.dot(i,eigen_vec)
-    output = normalize(output)
-    return output.flatten()
+    # Normalize the result
+    X = X.dot(x_vector)
+    X = normalize(X)
+    save_item(X,'../tmp/data_based.npy')
 
 def normalize(v):
     norm=np.linalg.norm(v)
@@ -68,29 +47,16 @@ def normalize(v):
                       RuntimeWarning)
     return v / std_dev
 
-def reduce_simpliest_PCA():
-    ev = get_eigenvector()
-    a = np.array([[[0.0 for k in range(TARGET_DIM)] for j in range(len(DATA[i]))] for i in range(len(DATA))])
-    for i in range(len(DATA)): # Beyond Class
-        for j in range(len(DATA[i])): # get all pictures
-            a[i][j] = reduce_dim(DATA[i][j],ev)
-    print(a.shape)
-    save_item(a,"../tmp/DATA_reduced.npy")
-
-def formulate_data(data):
+def formulate_target():
+    N = DATA.shape[0]* DATA.shape[1]
     target_list = list()
-    based_list = list()
-    for a in range(len(data)):
+    for a in range(len(DATA)):
         target = np.array([0,0,0])
         target[a] = 1
-        for item in data[a]:
+        for item in DATA[a]:
             target_list.append(target)
-            based_list.append([i for i in item])
-    based_list = np.array(based_list)
     target_list = np.array(target_list)
-    save_item(based_list,'../tmp/data_based.npy')
     save_item(target_list,'../tmp/data_target.npy')
 
-# reduce_simpliest_PCA()
-# DATA = get_item("../tmp/DATA_reduced.npy")
-# formulate_data(DATA)
+if __name__ == '__main__':
+    reduce_simpliest_PCA(sys.argv[1])
